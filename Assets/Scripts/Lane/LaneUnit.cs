@@ -34,10 +34,14 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
 
     public bool IsAlive => hp > 0;
 
+    public bool isAltar = false;       // 占拠目標の祭壇（移動・戦闘しない不動の障害物）
+
     private Text nameText;
     private Text statsText;
     private Text effectText;
     private Image bg;
+    private Outline outline;
+    private Image ownerBand;
 
     /// <summary>UIを生成して初期化する。parentは配置先セルのTransform。</summary>
     public void Setup(CardData cardData, LanePlayer ownerPlayer, int laneIndex, int colIndex, Transform parent)
@@ -83,9 +87,9 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
                                : (p1 ? new Color(0.2f, 0.45f, 0.7f, 0.95f) : new Color(0.7f, 0.3f, 0.2f, 0.95f));
         }
 
-        Outline o = gameObject.AddComponent<Outline>();
-        o.effectColor = edge;
-        o.effectDistance = new Vector2(2.2f, -2.2f);
+        outline = gameObject.AddComponent<Outline>();
+        outline.effectColor = edge;
+        outline.effectDistance = new Vector2(2.2f, -2.2f);
 
         // 陣営マーカー帯（上端）
         var banner = new GameObject("OwnerBand");
@@ -96,7 +100,8 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
         brt.pivot = new Vector2(0.5f, 1f);
         brt.sizeDelta = new Vector2(96f, 8f);
         brt.anchoredPosition = new Vector2(0f, -4f);
-        banner.AddComponent<Image>().color = band;
+        ownerBand = banner.AddComponent<Image>();
+        ownerBand.color = band;
 
         nameText = MakeText("Name", new Vector2(0, 28), new Vector2(90, 26), 13);
         nameText.text = cardData.cardName;
@@ -120,6 +125,39 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
         }
         if (effectText != null)
             effectText.text = LaneEffectInfo.Keyword(effect);
+    }
+
+    /// <summary>中立ユニットを指定プレイヤーの陣営に変える（手懐け）。色とHPを更新。</summary>
+    public void ConvertTo(LanePlayer newOwner)
+    {
+        owner = newOwner;
+        isNeutral = false;
+        effect = LaneEffect.None;
+        guardUsed = false;
+        justSummoned = false;
+        hp = Mathf.Max(1, data.defense); // 手懐けで全快
+
+        bool p1 = newOwner.isPlayer1;
+        if (bg != null)
+            bg.color = p1 ? new Color(0.62f, 0.78f, 1f, 1f) : new Color(1f, 0.72f, 0.62f, 1f);
+        if (outline != null)
+            outline.effectColor = p1 ? new Color(0.35f, 0.55f, 0.9f, 0.95f) : new Color(0.9f, 0.45f, 0.3f, 0.95f);
+        if (ownerBand != null)
+            ownerBand.color = p1 ? new Color(0.3f, 0.55f, 0.95f, 0.95f) : new Color(0.9f, 0.4f, 0.3f, 0.95f);
+
+        RefreshVisual();
+    }
+
+    /// <summary>祭壇の見た目に変更する（金色・名前表示）。</summary>
+    public void SetAltarLook()
+    {
+        isAltar = true;
+        if (bg != null) bg.color = new Color(0.85f, 0.72f, 0.25f, 1f);
+        if (outline != null) outline.effectColor = new Color(1f, 0.9f, 0.4f, 0.95f);
+        if (ownerBand != null) ownerBand.color = new Color(1f, 0.9f, 0.4f, 0.95f);
+        if (nameText != null) nameText.text = "祭壇";
+        if (statsText != null) statsText.text = "✦";
+        if (effectText != null) effectText.text = "";
     }
 
     private Text MakeText(string n, Vector2 pos, Vector2 size, int fontSize)

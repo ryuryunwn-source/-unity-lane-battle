@@ -47,6 +47,13 @@ public class LaneGameManager : MonoBehaviour
     public int neutralBaseAtk = 3;       // 中立の基礎ATK（+時代Lv）
     public int neutralBaseHp = 5;        // 中立の基礎HP（+時代Lv）
 
+    [Header("祭壇（占拠目標）")]
+    public bool enableAltar = true;
+    public int altarMpReward = 2;        // 祭壇を支配しているプレイヤーが毎ターン得るMP
+    private LaneUnit altar;
+    private int AltarLane => LaneBoard.Lanes / 2; // 中央レーン(2)
+    private int AltarCol => LaneBoard.Cells / 2;  // 中央セル(2)
+
     [Header("AI対戦")]
     public bool player2IsAI = false;
     private bool aiActing = false; // AIが操作中（人間入力をロックするため）
@@ -96,12 +103,15 @@ public class LaneGameManager : MonoBehaviour
         player2IsAI = GameSession.VsAI;
         player1.Initialize();
         player2.Initialize();
+        altar = null;
 
         for (int i = 0; i < initialHandSize; i++)
         {
             player1.DrawCard();
             player2.DrawCard();
         }
+
+        if (enableAltar) SpawnAltar();
 
         StartTurn(player1, player2);
     }
@@ -132,6 +142,7 @@ public class LaneGameManager : MonoBehaviour
 
         current.StartTurn();
         if (CheckWin()) return; // 山札切れの疲労ダメージで決着する場合がある
+        AltarControlReward(current); // 祭壇支配ボーナス（このターンから使える）
         ui?.Render();
         if (leveledUp)
             ui?.ShowBanner($"時代が進んだ！ 時代Lv.{EraLevel}");
@@ -258,16 +269,64 @@ public class LaneGameManager : MonoBehaviour
         return unit;
     }
 
+    // ===== 祭壇（占拠目標） =====
+    private void SpawnAltar()
+    {
+        int lane = AltarLane, col = AltarCol;
+        if (!board.IsEmpty(lane, col)) return;
+
+        CardData card = ScriptableObject.CreateInstance<CardData>();
+        card.cardName = "祭壇";
+        card.cardType = CardType.Monster;
+        card.attack = 0;
+        card.defense = 99;
+
+        GameObject go = new GameObject("Altar");
+        LaneUnit unit = go.AddComponent<LaneUnit>();
+        unit.Setup(card, null, lane, col, cells[lane, col]);
+        unit.isNeutral = true;
+        unit.SetAltarLook();
+        altar = unit;
+        board.Set(lane, col, unit);
+        Debug.Log("[祭壇] 中央に祭壇が出現");
+    }
+
+    /// <summary>祭壇の支配判定と、支配プレイヤーへの毎ターン報酬。</summary>
+    private void AltarControlReward(LanePlayer current)
+    {
+        if (!enableAltar || altar == null) return;
+
+        int myCell = AltarCol - current.Direction;     // 自分側の隣接セル
+        int oppCell = AltarCol + current.Direction;     // 相手側の隣接セル
+        LanePlayer opp = OpponentOf(current);
+
+        bool iControl = HasUnitAt(current, AltarLane, myCell);
+        bool oppControl = HasUnitAt(opp, AltarLane, oppCell);
+
+        if (iControl && !oppControl)
+        {
+            current.MP = Mathf.Min(current.MaxMP, current.MP + altarMpReward);
+            ui?.ShowBanner($"祭壇を支配！ MP+{altarMpReward}");
+            Debug.Log($"{current.playerName}: 祭壇支配でMP+{altarMpReward}");
+        }
+    }
+
+    private bool HasUnitAt(LanePlayer player, int lane, int col)
+    {
+        LaneUnit u = board.Get(lane, col);
+        return u != null && !u.isNeutral && u.owner == player && u.IsAlive;
+    }
+
     // ===== 中立NPC =====
     private void SpawnNeutral()
     {
         int dir = (Random.value < 0.5f) ? 1 : -1;
         int startCol = dir > 0 ? 0 : LaneBoard.Cells - 1;
 
-        // 入口セルが空いているレーンを探す
+        // 入口セルが空いているレーンを探す（祭壇レーンは詰まりやすいので避ける）
         var candidates = new List<int>();
         for (int lane = 0; lane < LaneBoard.Lanes; lane++)
-            if (board.IsEmpty(lane, startCol)) candidates.Add(lane);
+            if (board.IsEmpty(lane, startCol) && !(enableAltar && lane == AltarLane)) candidates.Add(lane);
         if (candidates.Count == 0) return;
 
         int chosen = candidates[Random.Range(0, candidates.Count)];
@@ -299,7 +358,7 @@ public class LaneGameManager : MonoBehaviour
             for (int c = 0; c < LaneBoard.Cells; c++)
             {
                 LaneUnit u = board.Get(l, c);
-                if (u != null && u.isNeutral) neutrals.Add(u);
+                if (u != null && u.isNeutral && !u.isAltar) neutrals.Add(u); // 祭壇は動かない
             }
 
         foreach (var n in neutrals)
@@ -319,6 +378,11 @@ public class LaneGameManager : MonoBehaviour
             }
 
             LaneUnit occupant = board.Get(n.lane, target);
+            if (occupant != null && occupant.isAltar)
+            {
+                // 祭壇は通れない。中立はそこで停止（次ターンも前が祭壇なら留まる）
+                continue;
+            }
             if (occupant == null)
             {
                 board.Set(n.lane, n.col, null);
@@ -409,6 +473,12 @@ public class LaneGameManager : MonoBehaviour
         }
 
         LaneUnit occupant = board.Get(lane, target);
+        if (occupant != null && occupant.isAltar)
+        {
+            // 祭壇は通れない障害物
+            unit.doneThisPhase = true;
+            return;
+        }
         if (occupant == null)
         {
             board.Set(lane, col, null);
@@ -433,6 +503,14 @@ public class LaneGameManager : MonoBehaviour
         int defHpBefore = defender.hp;
         Debug.Log($"戦闘: {attacker.data.cardName}(⚔{atkDmg}/♥{attacker.hp}) vs {defender.data.cardName}(⚔{defDmg}/♥{defender.hp})");
 
+        // 中立が絡む戦闘: とどめを刺した側が手懐ける
+        if (attacker.isNeutral || defender.isNeutral)
+        {
+            ResolveHit(defender, atkDmg, attacker);
+            ResolveHit(attacker, defDmg, defender);
+            return;
+        }
+
         DamageUnit(defender, atkDmg, fromEffect: false);
         DamageUnit(attacker, defDmg, fromEffect: false);
 
@@ -443,6 +521,37 @@ public class LaneGameManager : MonoBehaviour
             OpponentOf(attacker.owner).TakeBaseDamage(overflow);
             Debug.Log($"【貫通】{attacker.data.cardName} の超過{overflow}ダメージが相手ベースへ！");
         }
+    }
+
+    /// <summary>中立絡みの被弾処理。中立が倒れたら、相手がプレイヤーなら手懐ける。</summary>
+    private void ResolveHit(LaneUnit target, int dmg, LaneUnit source)
+    {
+        if (!target.isNeutral)
+        {
+            DamageUnit(target, dmg, fromEffect: false); // プレイヤーユニットは通常処理（守備/爆散対応）
+            return;
+        }
+
+        target.hp -= dmg;
+        if (target.hp > 0) { target.RefreshVisual(); return; }
+
+        // 中立が撃破された
+        if (source != null && !source.isNeutral && source.owner != null)
+            RecruitNeutral(target, source.owner);
+        else
+        {
+            if (board.Get(target.lane, target.col) == target) board.Set(target.lane, target.col, null);
+            Destroy(target.gameObject);
+        }
+    }
+
+    private void RecruitNeutral(LaneUnit u, LanePlayer newOwner)
+    {
+        u.ConvertTo(newOwner);
+        newOwner.DrawCard(); // 報酬: カードを1枚引く
+        Debug.Log($"{newOwner.playerName}: 災厄を手懐けた！（{u.data.cardName}が加入＋ドロー）");
+        ui?.ShowBanner($"{(newOwner.isPlayer1 ? "Player 1" : "相手")}が災厄を手懐けた！");
+        RefreshAllUnits();
     }
 
     /// <summary>ユニットにダメージ。守備（致死耐性）を考慮し、死亡時は破壊処理。</summary>
@@ -555,7 +664,7 @@ public class LaneGameManager : MonoBehaviour
                 for (int c = 0; c < LaneBoard.Cells; c++)
                 {
                     LaneUnit u = board.Get(lane, c);
-                    if (u != null && u.owner != CurrentPlayer)
+                    if (u != null && u.owner != CurrentPlayer && !u.isAltar)
                         DamageUnit(u, card.effectAmount, fromEffect: true);
                 }
                 Debug.Log($"【火炎弾】レーン{lane}の敵に{card.effectAmount}ダメージ");
@@ -571,7 +680,7 @@ public class LaneGameManager : MonoBehaviour
                 return true;
 
             case LaneItem.Rockfall:
-                if (target == null || target.owner == CurrentPlayer) return false;
+                if (target == null || target.owner == CurrentPlayer || target.isAltar) return false;
                 Debug.Log($"【落石】{target.data.cardName} を破壊");
                 KillUnit(target, fromEffect: true);
                 RefreshAllUnits();
@@ -600,7 +709,7 @@ public class LaneGameManager : MonoBehaviour
                     for (int c = 0; c < LaneBoard.Cells; c++)
                     {
                         LaneUnit u = board.Get(l, c);
-                        if (u != null && u.owner != CurrentPlayer)
+                        if (u != null && u.owner != CurrentPlayer && !u.isAltar)
                             DamageUnit(u, card.effectAmount, fromEffect: true);
                     }
                 Debug.Log($"【隕石嵐】敵全体に{card.effectAmount}ダメージ");
