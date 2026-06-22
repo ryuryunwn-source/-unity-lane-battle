@@ -28,6 +28,10 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
     public bool guardUsed = false;     // 守備: 致死耐性を使ったか
     public bool doneThisPhase = false; // 進軍フェーズ中の処理済みフラグ
 
+    // ===== 中立NPC =====
+    public bool isNeutral = false;     // 中立モンスター（どちらの陣営でもない妨害）
+    public int neutralDir = 1;         // 中立の進行方向
+
     public bool IsAlive => hp > 0;
 
     private Text nameText;
@@ -56,28 +60,31 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(96f, 96f);
 
+        bool p1 = ownerPlayer != null && ownerPlayer.isPlayer1;
+        bool neutral = ownerPlayer == null;
+        Color tint = neutral ? new Color(0.5f, 0.5f, 0.5f, 1f)
+                             : (p1 ? new Color(0.62f, 0.78f, 1f, 1f) : new Color(1f, 0.72f, 0.62f, 1f));
+        Color edge = neutral ? new Color(0.7f, 0.7f, 0.75f, 0.95f)
+                             : (p1 ? new Color(0.35f, 0.55f, 0.9f, 0.95f) : new Color(0.9f, 0.45f, 0.3f, 0.95f));
+        Color band = neutral ? new Color(0.75f, 0.75f, 0.8f, 0.95f)
+                             : (p1 ? new Color(0.3f, 0.55f, 0.95f, 0.95f) : new Color(0.9f, 0.4f, 0.3f, 0.95f));
+
         bg = gameObject.AddComponent<Image>();
         Sprite frame = AncientArt.CardFrame;
         if (frame != null)
         {
             bg.sprite = frame;
             bg.type = Image.Type.Sliced;
-            // 石組みの質感を活かしつつ陣営色をうっすら乗せる
-            bg.color = ownerPlayer.isPlayer1
-                ? new Color(0.62f, 0.78f, 1f, 1f)    // P1=青みがかった石
-                : new Color(1f, 0.72f, 0.62f, 1f);   // P2=赤みがかった石
+            bg.color = tint;
         }
         else
         {
-            bg.color = ownerPlayer.isPlayer1
-                ? new Color(0.2f, 0.45f, 0.7f, 0.95f)
-                : new Color(0.7f, 0.3f, 0.2f, 0.95f);
+            bg.color = neutral ? new Color(0.4f, 0.4f, 0.4f, 0.95f)
+                               : (p1 ? new Color(0.2f, 0.45f, 0.7f, 0.95f) : new Color(0.7f, 0.3f, 0.2f, 0.95f));
         }
 
         Outline o = gameObject.AddComponent<Outline>();
-        o.effectColor = ownerPlayer.isPlayer1
-            ? new Color(0.35f, 0.55f, 0.9f, 0.95f)
-            : new Color(0.9f, 0.45f, 0.3f, 0.95f);
+        o.effectColor = edge;
         o.effectDistance = new Vector2(2.2f, -2.2f);
 
         // 陣営マーカー帯（上端）
@@ -89,9 +96,7 @@ public class LaneUnit : MonoBehaviour, IPointerClickHandler
         brt.pivot = new Vector2(0.5f, 1f);
         brt.sizeDelta = new Vector2(96f, 8f);
         brt.anchoredPosition = new Vector2(0f, -4f);
-        banner.AddComponent<Image>().color = ownerPlayer.isPlayer1
-            ? new Color(0.3f, 0.55f, 0.95f, 0.95f)
-            : new Color(0.9f, 0.4f, 0.3f, 0.95f);
+        banner.AddComponent<Image>().color = band;
 
         nameText = MakeText("Name", new Vector2(0, 28), new Vector2(90, 26), 13);
         nameText.text = cardData.cardName;

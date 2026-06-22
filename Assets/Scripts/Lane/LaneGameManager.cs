@@ -41,6 +41,12 @@ public class LaneGameManager : MonoBehaviour
     public int SelectedHandIndex { get; private set; } = -1;
     public bool GameOver { get; private set; } = false;
 
+    [Header("中立NPC（妨害モンスター）")]
+    public bool enableNeutral = true;
+    public int neutralEveryTurns = 5;   // 何ターンごとに中立が出現するか
+    public int neutralBaseAtk = 3;       // 中立の基礎ATK（+時代Lv）
+    public int neutralBaseHp = 5;        // 中立の基礎HP（+時代Lv）
+
     [Header("AI対戦")]
     public bool player2IsAI = false;
     private bool aiActing = false; // AIが操作中（人間入力をロックするため）
@@ -119,6 +125,10 @@ public class LaneGameManager : MonoBehaviour
             GrantEraCard(player1);
             GrantEraCard(player2);
         }
+
+        // 中立NPCの出現（数ターンごと）
+        if (enableNeutral && turnCounter > 0 && turnCounter % neutralEveryTurns == 0)
+            SpawnNeutral();
 
         current.StartTurn();
         if (CheckWin()) return; // 山札切れの疲労ダメージで決着する場合がある
@@ -248,6 +258,82 @@ public class LaneGameManager : MonoBehaviour
         return unit;
     }
 
+    // ===== 中立NPC =====
+    private void SpawnNeutral()
+    {
+        int dir = (Random.value < 0.5f) ? 1 : -1;
+        int startCol = dir > 0 ? 0 : LaneBoard.Cells - 1;
+
+        // 入口セルが空いているレーンを探す
+        var candidates = new List<int>();
+        for (int lane = 0; lane < LaneBoard.Lanes; lane++)
+            if (board.IsEmpty(lane, startCol)) candidates.Add(lane);
+        if (candidates.Count == 0) return;
+
+        int chosen = candidates[Random.Range(0, candidates.Count)];
+
+        CardData card = ScriptableObject.CreateInstance<CardData>();
+        card.cardName = "災厄の番兵";
+        card.cardType = CardType.Monster;
+        card.attack = neutralBaseAtk + EraLevel;
+        card.defense = neutralBaseHp + EraLevel;
+
+        GameObject go = new GameObject("Unit_Neutral");
+        LaneUnit unit = go.AddComponent<LaneUnit>();
+        unit.Setup(card, null, chosen, startCol, cells[chosen, startCol]);
+        unit.isNeutral = true;
+        unit.neutralDir = dir;
+        board.Set(chosen, startCol, unit);
+
+        string side = dir > 0 ? "左" : "右";
+        ui?.ShowBanner($"⚠ 中立モンスター出現！ レーン{chosen + 1}（{side}から）");
+        Debug.Log($"[中立] 災厄の番兵がレーン{chosen}に出現 (⚔{card.attack}/♥{card.defense}, dir={dir})");
+    }
+
+    /// <summary>中立ユニットを1マスずつ進め、ぶつかった両陣営のユニットと戦闘させる。</summary>
+    private void NeutralPhase()
+    {
+        // 盤面から中立を収集
+        var neutrals = new List<LaneUnit>();
+        for (int l = 0; l < LaneBoard.Lanes; l++)
+            for (int c = 0; c < LaneBoard.Cells; c++)
+            {
+                LaneUnit u = board.Get(l, c);
+                if (u != null && u.isNeutral) neutrals.Add(u);
+            }
+
+        foreach (var n in neutrals)
+        {
+            if (n == null || !n.IsAlive) continue;
+            if (board.Get(n.lane, n.col) != n) continue; // 既に消滅/移動済み
+
+            int target = n.col + n.neutralDir;
+            bool offBoard = (n.neutralDir > 0) ? (target >= LaneBoard.Cells) : (target < 0);
+            if (offBoard)
+            {
+                // 渡りきって消滅（ベースには無害）
+                board.Set(n.lane, n.col, null);
+                Debug.Log("[中立] 災厄の番兵が立ち去った");
+                Destroy(n.gameObject);
+                continue;
+            }
+
+            LaneUnit occupant = board.Get(n.lane, target);
+            if (occupant == null)
+            {
+                board.Set(n.lane, n.col, null);
+                board.Set(n.lane, target, n);
+                n.MoveTo(n.lane, target, cells[n.lane, target]);
+            }
+            else
+            {
+                // 両陣営問わず戦闘
+                Combat(n, occupant);
+            }
+        }
+        RefreshAllUnits();
+    }
+
     // ===== ターン終了 → 進軍フェーズ =====
     public void EndTurn()
     {
@@ -256,6 +342,7 @@ public class LaneGameManager : MonoBehaviour
         SelectedHandIndex = -1;
 
         AdvancePhase(CurrentPlayer);
+        NeutralPhase();
         ui?.Render();
 
         if (CheckWin()) return;
