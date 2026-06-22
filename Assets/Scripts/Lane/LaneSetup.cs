@@ -26,9 +26,10 @@ public class LaneSetup : MonoBehaviour
         if (ui == null) ui = FindFirstObjectByType<LaneUI>();
 
         var p1 = new LanePlayer("Player 1", true, LaneDeckFactory.CreateDeck());
-        var p2 = new LanePlayer("Player 2", false, LaneDeckFactory.CreateDeck());
+        var p2 = new LanePlayer(GameSession.VsAI ? "AI" : "Player 2", false, LaneDeckFactory.CreateDeck());
 
         gm.Configure(p1, p2, cells, ui);
+        gm.player2IsAI = GameSession.VsAI;
         gm.BeginWhenReady();
     }
 }

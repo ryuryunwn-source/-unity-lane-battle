@@ -14,6 +14,9 @@ public static class GameSession
 {
     public static GameMode Mode = GameMode.None;
 
+    /// <summary>ローカル対戦で相手(player2)をAIが操作するか。</summary>
+    public static bool VsAI = false;
+
     /// <summary>Relayの参加コード（ホストが発行 / 参加者が入力）。</summary>
     public static string RelayJoinCode = "";
 
@@ -25,6 +28,7 @@ public static class GameSession
     public static void Reset()
     {
         Mode = GameMode.None;
+        VsAI = false;
         RelayJoinCode = "";
     }
 }

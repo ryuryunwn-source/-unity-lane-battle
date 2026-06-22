@@ -1,12 +1,19 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 /// <summary>
 /// レーン上に配置されたモンスター1体。盤面のセルに親子付けされて表示される。
 /// 進軍・戦闘はLaneGameManagerが制御し、本クラスはステータスと見た目を保持する。
+/// ユニットの画像がセルのクリックを遮るため、クリックは自身の座標としてマネージャへ転送する。
 /// </summary>
-public class LaneUnit : MonoBehaviour
+public class LaneUnit : MonoBehaviour, IPointerClickHandler
 {
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        LaneGameManager.Instance?.OnCellClicked(lane, col);
+    }
+
     public CardData data;
     public LanePlayer owner;
     public int lane;
@@ -15,10 +22,17 @@ public class LaneUnit : MonoBehaviour
     public int hp;
     public bool advancedThisTurn = false;
 
+    // ===== 特殊効果 =====
+    public LaneEffect effect = LaneEffect.None;
+    public bool justSummoned = false;  // このターンに召喚されたか（突撃の判定用）
+    public bool guardUsed = false;     // 守備: 致死耐性を使ったか
+    public bool doneThisPhase = false; // 進軍フェーズ中の処理済みフラグ
+
     public bool IsAlive => hp > 0;
 
     private Text nameText;
     private Text statsText;
+    private Text effectText;
     private Image bg;
 
     /// <summary>UIを生成して初期化する。parentは配置先セルのTransform。</summary>
@@ -30,6 +44,8 @@ public class LaneUnit : MonoBehaviour
         col = colIndex;
         atk = cardData.attack;
         hp = cardData.defense;
+        effect = cardData.laneEffect;
+        justSummoned = true;
 
         transform.SetParent(parent, false);
         var rt = GetComponent<RectTransform>();
@@ -84,12 +100,21 @@ public class LaneUnit : MonoBehaviour
         statsText = MakeText("Stats", new Vector2(0, -30), new Vector2(90, 30), 19);
         statsText.fontStyle = FontStyle.Bold;
 
+        effectText = MakeText("Effect", new Vector2(0, 6), new Vector2(92, 22), 11);
+        effectText.color = new Color(1f, 0.85f, 0.4f);
+
         RefreshVisual();
     }
 
-    public void RefreshVisual()
+    /// <summary>表示用の攻撃力（隣接強化などの補正後の値）を渡せる版。bonusAtk=補正値。</summary>
+    public void RefreshVisual(int bonusAtk = 0)
     {
-        if (statsText != null) statsText.text = $"⚔{atk}  ♥{hp}";
+        if (statsText != null)
+        {
+            statsText.text = bonusAtk > 0 ? $"⚔{atk}+{bonusAtk}  ♥{hp}" : $"⚔{atk}  ♥{hp}";
+        }
+        if (effectText != null)
+            effectText.text = LaneEffectInfo.Keyword(effect);
     }
 
     private Text MakeText(string n, Vector2 pos, Vector2 size, int fontSize)

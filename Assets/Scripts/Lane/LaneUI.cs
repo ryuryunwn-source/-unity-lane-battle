@@ -38,9 +38,34 @@ public class LaneUI : MonoBehaviour
         if (p1MpText) p1MpText.text = $"MP: {gm.player1.MP}/{gm.player1.MaxMP}";
         if (p2MpText) p2MpText.text = $"MP: {gm.player2.MP}/{gm.player2.MaxMP}";
         if (turnText && gm.CurrentPlayer != null)
-            turnText.text = gm.CurrentPlayer.isPlayer1 ? "▶ Player 1 のターン" : "▶ Player 2 のターン";
+        {
+            string baseLabel = gm.CurrentPlayer.isPlayer1 ? "▶ Player 1 のターン" : "▶ Player 2 のターン";
+            baseLabel = $"時代Lv.{gm.EraLevel}　" + baseLabel;
+            string hint = SelectionHint(gm);
+            turnText.text = string.IsNullOrEmpty(hint) ? baseLabel : baseLabel + "　" + hint;
+        }
 
         RebuildHand(gm);
+    }
+
+    /// <summary>選択中カードに応じた操作ガイド文。</summary>
+    private string SelectionHint(LaneGameManager gm)
+    {
+        if (gm.SelectedHandIndex < 0 || gm.CurrentPlayer == null) return "";
+        if (gm.SelectedHandIndex >= gm.CurrentPlayer.hand.Count) return "";
+        CardData card = gm.CurrentPlayer.hand[gm.SelectedHandIndex];
+
+        if (card.cardType == CardType.Monster)
+            return "自陣端の空きマスをクリックで召喚";
+
+        switch (card.itemEffect)
+        {
+            case LaneItem.Firebolt: return "対象レーンのマスをクリック";
+            case LaneItem.Buff:     return "自分のユニットをクリック";
+            case LaneItem.Rockfall: return "相手のユニットをクリック";
+            case LaneItem.Retreat:  return "後退させる自分のユニットをクリック";
+            default: return "";
+        }
     }
 
     private void RebuildHand(LaneGameManager gm)
@@ -55,7 +80,7 @@ public class LaneUI : MonoBehaviour
         {
             CardData card = hand[i];
             bool selected = (i == gm.SelectedHandIndex);
-            bool affordable = gm.CurrentPlayer.CanAfford(card);
+            bool affordable = gm.CanAffordCurrent(card);
             CreateHandCard(card, i, selected, affordable);
         }
     }
@@ -101,11 +126,33 @@ public class LaneUI : MonoBehaviour
         Image costImg = costBadge.AddComponent<Image>();
         if (AncientArt.IconCost != null) { costImg.sprite = AncientArt.IconCost; costImg.color = Color.white; }
         else costImg.color = new Color(0.9f, 0.7f, 0f);
-        MakeText(costBadge.transform, "Cost", card.cost.ToString(), Vector2.zero, new Vector2(34f, 34f), 18, Color.white);
+        var gm = LaneGameManager.Instance;
+        int effCost = gm != null ? gm.EffectiveCost(card) : card.cost;
+        MakeText(costBadge.transform, "Cost", effCost.ToString(), Vector2.zero, new Vector2(34f, 34f), 18, Color.white);
 
-        MakeText(go.transform, "Stats", $"⚔{card.attack}  ♥{card.defense}", new Vector2(0, -8), new Vector2(112, 30), 18,
-            new Color(0.97f, 0.92f, 0.78f));
-        MakeText(go.transform, "Desc", card.description, new Vector2(0, -50), new Vector2(108, 48), 10,
+        if (card.cardType == CardType.Item)
+        {
+            // アイテム: ステータスの代わりに効果キーワードを表示
+            MakeText(go.transform, "Kind", LaneEffectInfo.Keyword(card.itemEffect),
+                new Vector2(0, -6), new Vector2(112, 28), 14, new Color(1f, 0.8f, 0.4f));
+        }
+        else
+        {
+            // 時代レベルの強化を反映した実ステータスをプレビュー表示
+            int atkBonus = gm != null ? gm.atkPerLevel * (gm.EraLevel - 1) : 0;
+            int hpBonus = gm != null ? gm.hpPerLevel * (gm.EraLevel - 1) : 0;
+            string atkStr = atkBonus > 0 ? $"{card.attack}+{atkBonus}" : card.attack.ToString();
+            string hpStr = hpBonus > 0 ? $"{card.defense}+{hpBonus}" : card.defense.ToString();
+            MakeText(go.transform, "Stats", $"⚔{atkStr}  ♥{hpStr}", new Vector2(0, -6), new Vector2(112, 28), 16,
+                new Color(0.97f, 0.92f, 0.78f));
+            // ユニット特殊効果のキーワード
+            string kw = LaneEffectInfo.Keyword(card.laneEffect);
+            if (!string.IsNullOrEmpty(kw))
+                MakeText(go.transform, "Effect", kw, new Vector2(0, -32), new Vector2(112, 22), 11,
+                    new Color(1f, 0.85f, 0.4f));
+        }
+
+        MakeText(go.transform, "Desc", card.description, new Vector2(0, -58), new Vector2(108, 40), 9,
             new Color(0.82f, 0.8f, 0.72f));
     }
 

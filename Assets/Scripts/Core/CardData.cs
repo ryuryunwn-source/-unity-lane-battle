@@ -7,7 +7,8 @@ public enum CardType
     Defense,
     MPRecovery,
     Ultimate, // 必殺カード: 自分の場にモンスターが3体以上いる時だけ使用可能。相手に直接ダメージ
-    Trap      // 秘策カード: セットすると伏せられ、相手の攻撃時に自動発動して無効化＋反撃ダメージ
+    Trap,     // 秘策カード: セットすると伏せられ、相手の攻撃時に自動発動して無効化＋反撃ダメージ
+    Item      // アイテムカード（侵攻ライン）: 手札から使い、盤面に即時効果を与える
 }
 
 [CreateAssetMenu(fileName = "NewCard", menuName = "TCG/Card Data")]
@@ -26,5 +27,9 @@ public class CardData : ScriptableObject
     public int defense = 1;
 
     [Header("効果量 (モンスター以外)")]
-    public int effectAmount = 3; // 回復量 / 防御量 / MP回復量
+    public int effectAmount = 3; // 回復量 / 防御量 / MP回復量 / アイテムの効果量
+
+    [Header("侵攻ライン: ユニット特殊効果 / アイテム効果")]
+    public LaneEffect laneEffect = LaneEffect.None; // モンスターに付く特殊効果
+    public LaneItem itemEffect = LaneItem.None;     // Itemカードの効果種別
 }
