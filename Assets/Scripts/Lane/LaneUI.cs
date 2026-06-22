@@ -35,8 +35,8 @@ public class LaneUI : MonoBehaviour
 
         if (p1BaseText) p1BaseText.text = $"P1 ベース: {gm.player1.BaseHP}/{gm.player1.MaxBaseHP}";
         if (p2BaseText) p2BaseText.text = $"P2 ベース: {gm.player2.BaseHP}/{gm.player2.MaxBaseHP}";
-        if (p1MpText) p1MpText.text = $"MP: {gm.player1.MP}/{gm.player1.MaxMP}";
-        if (p2MpText) p2MpText.text = $"MP: {gm.player2.MP}/{gm.player2.MaxMP}";
+        if (p1MpText) p1MpText.text = $"MP: {gm.player1.MP}/{gm.player1.MaxMP}　鉱脈{gm.HeldLaneCount(gm.player1)}";
+        if (p2MpText) p2MpText.text = $"MP: {gm.player2.MP}/{gm.player2.MaxMP}　鉱脈{gm.HeldLaneCount(gm.player2)}";
         if (turnText && gm.CurrentPlayer != null)
         {
             string baseLabel = gm.CurrentPlayer.isPlayer1 ? "▶ Player 1 のターン" : "▶ Player 2 のターン";

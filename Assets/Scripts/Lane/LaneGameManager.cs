@@ -47,12 +47,17 @@ public class LaneGameManager : MonoBehaviour
     public int neutralBaseAtk = 3;       // 中立の基礎ATK（+時代Lv）
     public int neutralBaseHp = 5;        // 中立の基礎HP（+時代Lv）
 
-    [Header("祭壇（占拠目標）")]
-    public bool enableAltar = true;
+    [Header("祭壇（占拠目標）※無効化中")]
+    public bool enableAltar = false;
     public int altarMpReward = 2;        // 祭壇を支配しているプレイヤーが毎ターン得るMP
     private LaneUnit altar;
     private int AltarLane => LaneBoard.Lanes / 2; // 中央レーン(2)
     private int AltarCol => LaneBoard.Cells / 2;  // 中央セル(2)
+
+    [Header("レーン資源（鉱脈）")]
+    public bool enableMines = true;
+    public int mineMpPerLane = 1;   // 確保レーン1つにつき得るMP
+    public int mineDrawAt = 3;      // 何レーン確保でカードを1枚引くか
 
     [Header("AI対戦")]
     public bool player2IsAI = false;
@@ -142,7 +147,8 @@ public class LaneGameManager : MonoBehaviour
 
         current.StartTurn();
         if (CheckWin()) return; // 山札切れの疲労ダメージで決着する場合がある
-        AltarControlReward(current); // 祭壇支配ボーナス（このターンから使える）
+        AltarControlReward(current); // 祭壇支配ボーナス（無効化中は何もしない）
+        MineReward(current);         // レーン資源（鉱脈）ボーナス
         ui?.Render();
         if (leveledUp)
             ui?.ShowBanner($"時代が進んだ！ 時代Lv.{EraLevel}");
@@ -315,6 +321,43 @@ public class LaneGameManager : MonoBehaviour
     {
         LaneUnit u = board.Get(lane, col);
         return u != null && !u.isNeutral && u.owner == player && u.IsAlive;
+    }
+
+    // ===== レーン資源（鉱脈） =====
+    /// <summary>そのレーンに、指定プレイヤーの（中立でない）ユニットがいるか。</summary>
+    private bool LaneHasUnit(LanePlayer player, int lane)
+    {
+        for (int c = 0; c < LaneBoard.Cells; c++)
+        {
+            LaneUnit u = board.Get(lane, c);
+            if (u != null && !u.isNeutral && u.owner == player && u.IsAlive) return true;
+        }
+        return false;
+    }
+
+    /// <summary>確保レーン数：自分のユニットがいて相手のユニットがいないレーンの数。</summary>
+    public int HeldLaneCount(LanePlayer player)
+    {
+        if (player == null) return 0;
+        LanePlayer opp = OpponentOf(player);
+        int held = 0;
+        for (int lane = 0; lane < LaneBoard.Lanes; lane++)
+            if (LaneHasUnit(player, lane) && !LaneHasUnit(opp, lane)) held++;
+        return held;
+    }
+
+    private void MineReward(LanePlayer current)
+    {
+        if (!enableMines) return;
+        int held = HeldLaneCount(current);
+        if (held <= 0) return;
+
+        int gain = held * mineMpPerLane;
+        current.MP = Mathf.Min(current.MaxMP, current.MP + gain);
+        string extra = "";
+        if (held >= mineDrawAt) { current.DrawCard(); extra = "＋ドロー"; }
+        ui?.ShowBanner($"鉱脈 {held}レーン確保！ MP+{gain}{extra}");
+        Debug.Log($"{current.playerName}: 鉱脈{held}レーン → MP+{gain}{extra}");
     }
 
     // ===== 中立NPC =====
