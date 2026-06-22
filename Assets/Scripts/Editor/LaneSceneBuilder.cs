@@ -31,10 +31,17 @@ public static class LaneSceneBuilder
         // Canvas
         Canvas canvas = CreateCanvas();
 
-        // 背景
+        // 背景（古代遺跡の石板テクスチャ）
         GameObject bg = NewImage(canvas.transform, "BG", Vector2.zero, new Vector2(1920, 1080),
             new Color(0.07f, 0.06f, 0.05f, 1f));
         Stretch(bg.GetComponent<RectTransform>());
+        Image bgImg = bg.GetComponent<Image>();
+        if (AncientArt.Board != null)
+        {
+            bgImg.sprite = AncientArt.Board;
+            bgImg.type = Image.Type.Simple;
+            bgImg.color = new Color(0.5f, 0.5f, 0.5f, 1f); // 上のUIを邪魔しないよう少し暗く
+        }
 
         // ===== 盤面グリッド（5レーン×5セル）=====
         GameObject gridGo = new GameObject("LaneGrid");
@@ -62,6 +69,10 @@ public static class LaneSceneBuilder
                 if (col == 0) cellImg.color = new Color(0.18f, 0.28f, 0.42f, 0.55f);       // P1 home
                 else if (col == LaneBoard.Cells - 1) cellImg.color = new Color(0.42f, 0.22f, 0.18f, 0.55f); // P2 home
                 else cellImg.color = new Color(0.16f, 0.15f, 0.12f, 0.5f);
+                Outline cellOutline = cellGo.AddComponent<Outline>();
+                cellOutline.effectColor = new Color(0.6f, 0.5f, 0.25f, 0.55f);
+                cellOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
                 LaneCell cell = cellGo.AddComponent<LaneCell>();
                 cell.lane = lane;
                 cell.col = col;
@@ -73,6 +84,14 @@ public static class LaneSceneBuilder
         uiGo.transform.SetParent(canvas.transform, false);
         uiGo.AddComponent<RectTransform>();
         LaneUI ui = uiGo.AddComponent<LaneUI>();
+
+        if (AncientArt.BarHp != null)
+        {
+            var b1 = NewImage(canvas.transform, "P1BaseBar", new Vector2(-740, 232), new Vector2(320, 64), Color.white);
+            b1.GetComponent<Image>().sprite = AncientArt.BarHp;
+            var b2 = NewImage(canvas.transform, "P2BaseBar", new Vector2(740, 232), new Vector2(320, 64), Color.white);
+            b2.GetComponent<Image>().sprite = AncientArt.BarHp;
+        }
 
         ui.p1BaseText = NewText(canvas.transform, "P1Base", "P1 ベース: 20/20",
             new Vector2(-740, 240), new Vector2(340, 50), 28, new Color(0.55f, 0.8f, 1f)).GetComponent<Text>();
@@ -148,6 +167,14 @@ public static class LaneSceneBuilder
         return c;
     }
 
+    private static void Stretch(RectTransform rt)
+    {
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
     private static GameObject NewImage(Transform parent, string name, Vector2 pos, Vector2 size, Color color)
     {
         GameObject go = new GameObject(name);
@@ -185,8 +212,15 @@ public static class LaneSceneBuilder
     private static Button CreateButton(Transform parent, string name, Vector2 pos, Vector2 size, string label, Color color)
     {
         GameObject go = NewImage(parent, name, pos, size, color);
+        Image img = go.GetComponent<Image>();
+        if (AncientArt.BtnTurnEnd != null)
+        {
+            img.sprite = AncientArt.BtnTurnEnd;
+            img.type = Image.Type.Sliced;
+            img.color = Color.white;
+        }
         Button btn = go.AddComponent<Button>();
-        NewText(go.transform, "Label", label, Vector2.zero, size, 22, Color.white);
+        NewText(go.transform, "Label", label, Vector2.zero, size, 22, new Color(0.97f, 0.92f, 0.78f));
         return btn;
     }
 }

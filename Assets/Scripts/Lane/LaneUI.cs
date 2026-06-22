@@ -68,23 +68,45 @@ public class LaneUI : MonoBehaviour
         rt.sizeDelta = new Vector2(120f, 160f);
 
         Image bg = go.AddComponent<Image>();
-        bg.color = selected ? new Color(0.85f, 0.7f, 0.25f, 0.98f)
-                            : (affordable ? new Color(0.22f, 0.3f, 0.4f, 0.95f)
-                                          : new Color(0.18f, 0.18f, 0.2f, 0.7f));
+        Sprite frame = AncientArt.CardFrame;
+        if (frame != null)
+        {
+            bg.sprite = frame;
+            bg.type = Image.Type.Sliced;
+            bg.color = selected ? new Color(1f, 0.92f, 0.55f, 1f)
+                                : (affordable ? Color.white : new Color(0.55f, 0.55f, 0.55f, 0.85f));
+        }
+        else
+        {
+            bg.color = selected ? new Color(0.85f, 0.7f, 0.25f, 0.98f)
+                                : (affordable ? new Color(0.22f, 0.3f, 0.4f, 0.95f)
+                                              : new Color(0.18f, 0.18f, 0.2f, 0.7f));
+        }
 
         Outline o = go.AddComponent<Outline>();
-        o.effectColor = new Color(0.75f, 0.6f, 0.3f, 0.9f);
+        o.effectColor = selected ? new Color(1f, 0.85f, 0.3f, 1f) : new Color(0.75f, 0.6f, 0.3f, 0.9f);
         o.effectDistance = new Vector2(2f, -2f);
 
         go.AddComponent<LaneHandCard>().handIndex = index;
 
-        MakeText(go.transform, "Name", card.cardName, new Vector2(0, 58), new Vector2(112, 30), 14, Color.white);
-        MakeText(go.transform, "Cost", $"コスト {card.cost}", new Vector2(0, 24), new Vector2(112, 26), 14,
-            new Color(0.5f, 0.85f, 1f));
-        MakeText(go.transform, "Stats", $"⚔{card.attack}  ♥{card.defense}", new Vector2(0, -10), new Vector2(112, 30), 18,
-            Color.white);
-        MakeText(go.transform, "Desc", card.description, new Vector2(0, -52), new Vector2(112, 50), 10,
-            new Color(0.85f, 0.85f, 0.8f));
+        MakeText(go.transform, "Name", card.cardName, new Vector2(0, 56), new Vector2(112, 28), 14,
+            new Color(0.97f, 0.92f, 0.78f));
+
+        // コストバッジ（左上・歯車アイコン）
+        GameObject costBadge = new GameObject("CostBadge");
+        costBadge.transform.SetParent(go.transform, false);
+        RectTransform crt = costBadge.AddComponent<RectTransform>();
+        crt.sizeDelta = new Vector2(34f, 34f);
+        crt.anchoredPosition = new Vector2(-42f, 56f);
+        Image costImg = costBadge.AddComponent<Image>();
+        if (AncientArt.IconCost != null) { costImg.sprite = AncientArt.IconCost; costImg.color = Color.white; }
+        else costImg.color = new Color(0.9f, 0.7f, 0f);
+        MakeText(costBadge.transform, "Cost", card.cost.ToString(), Vector2.zero, new Vector2(34f, 34f), 18, Color.white);
+
+        MakeText(go.transform, "Stats", $"⚔{card.attack}  ♥{card.defense}", new Vector2(0, -8), new Vector2(112, 30), 18,
+            new Color(0.97f, 0.92f, 0.78f));
+        MakeText(go.transform, "Desc", card.description, new Vector2(0, -50), new Vector2(108, 48), 10,
+            new Color(0.82f, 0.8f, 0.72f));
     }
 
     private Text MakeText(Transform parent, string n, string content, Vector2 pos, Vector2 size, int fontSize, Color color)

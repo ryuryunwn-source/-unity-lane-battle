@@ -41,18 +41,47 @@ public class LaneUnit : MonoBehaviour
         rt.sizeDelta = new Vector2(96f, 96f);
 
         bg = gameObject.AddComponent<Image>();
-        bg.color = ownerPlayer.isPlayer1
-            ? new Color(0.2f, 0.45f, 0.7f, 0.95f)   // P1=青
-            : new Color(0.7f, 0.3f, 0.2f, 0.95f);   // P2=赤
+        Sprite frame = AncientArt.CardFrame;
+        if (frame != null)
+        {
+            bg.sprite = frame;
+            bg.type = Image.Type.Sliced;
+            // 石組みの質感を活かしつつ陣営色をうっすら乗せる
+            bg.color = ownerPlayer.isPlayer1
+                ? new Color(0.62f, 0.78f, 1f, 1f)    // P1=青みがかった石
+                : new Color(1f, 0.72f, 0.62f, 1f);   // P2=赤みがかった石
+        }
+        else
+        {
+            bg.color = ownerPlayer.isPlayer1
+                ? new Color(0.2f, 0.45f, 0.7f, 0.95f)
+                : new Color(0.7f, 0.3f, 0.2f, 0.95f);
+        }
 
         Outline o = gameObject.AddComponent<Outline>();
-        o.effectColor = new Color(0.85f, 0.7f, 0.3f, 0.9f);
-        o.effectDistance = new Vector2(2f, -2f);
+        o.effectColor = ownerPlayer.isPlayer1
+            ? new Color(0.35f, 0.55f, 0.9f, 0.95f)
+            : new Color(0.9f, 0.45f, 0.3f, 0.95f);
+        o.effectDistance = new Vector2(2.2f, -2.2f);
 
-        nameText = MakeText("Name", new Vector2(0, 30), new Vector2(92, 28), 13);
+        // 陣営マーカー帯（上端）
+        var banner = new GameObject("OwnerBand");
+        banner.transform.SetParent(transform, false);
+        var brt = banner.AddComponent<RectTransform>();
+        brt.anchorMin = new Vector2(0.5f, 1f);
+        brt.anchorMax = new Vector2(0.5f, 1f);
+        brt.pivot = new Vector2(0.5f, 1f);
+        brt.sizeDelta = new Vector2(96f, 8f);
+        brt.anchoredPosition = new Vector2(0f, -4f);
+        banner.AddComponent<Image>().color = ownerPlayer.isPlayer1
+            ? new Color(0.3f, 0.55f, 0.95f, 0.95f)
+            : new Color(0.9f, 0.4f, 0.3f, 0.95f);
+
+        nameText = MakeText("Name", new Vector2(0, 28), new Vector2(90, 26), 13);
         nameText.text = cardData.cardName;
+        nameText.color = new Color(0.97f, 0.92f, 0.78f);
 
-        statsText = MakeText("Stats", new Vector2(0, -28), new Vector2(92, 30), 18);
+        statsText = MakeText("Stats", new Vector2(0, -30), new Vector2(90, 30), 19);
         statsText.fontStyle = FontStyle.Bold;
 
         RefreshVisual();
