@@ -86,6 +86,8 @@ public class LaneGameManager : MonoBehaviour
         board.Clear();
         EraLevel = 1;
         turnCounter = 0;
+        // モード選択後に確定するため、ここでAIフラグを読み直す
+        player2IsAI = GameSession.VsAI;
         player1.Initialize();
         player2.Initialize();
 
