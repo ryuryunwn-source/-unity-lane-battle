@@ -21,12 +21,11 @@ public static class LaneDeckFactory
         deck.Add(Eff("爆裂ゴーレム", 4, 4, 4, LaneEffect.Explode, "破壊時、前後の敵に2ダメージ"));
         deck.Add(Eff("古竜", 5, 7, 6, LaneEffect.Trample, "コスト5の決定力。貫通持ち"));
 
-        // ===== アイテムカード =====
-        for (int i = 0; i < 2; i++) deck.Add(Item("火炎弾", 2, LaneItem.Firebolt, 3, "対象レーンの敵全員に3ダメージ"));
-        deck.Add(Item("強化の薬", 2, LaneItem.Buff, 0, "自分のユニット1体を+2/+2"));
-        deck.Add(Item("落石", 4, LaneItem.Rockfall, 0, "相手のユニット1体を破壊"));
+        // ===== アイテムカード（控えめに：枚数を絞りコストを引き上げ）=====
+        deck.Add(Item("火炎弾", 3, LaneItem.Firebolt, 3, "対象レーンの敵全員に3ダメージ"));
+        deck.Add(Item("強化の薬", 3, LaneItem.Buff, 0, "自分のユニット1体を+2/+2"));
+        deck.Add(Item("落石", 5, LaneItem.Rockfall, 0, "相手のユニット1体を破壊"));
         deck.Add(Item("退却ラッパ", 1, LaneItem.Retreat, 0, "自分のユニットを自陣端へ後退"));
-        deck.Add(Item("時の砂", 3, LaneItem.TimeSand, 0, "このターン自軍が全員+1マス進軍"));
 
         return deck;
     }
@@ -36,10 +35,11 @@ public static class LaneDeckFactory
     {
         switch (level)
         {
-            case 2: return Item("鬨の声", 3, LaneItem.WarCry, 0, "自軍全ユニットを+2/+2");
-            case 3: return Item("隕石嵐", 5, LaneItem.Meteor, 4, "盤面の敵全員に4ダメージ");
+            // 全体強化「鬨の声」は強すぎたため廃止し、強力モンスター中心に
+            case 2: return Eff("竜騎兵", 3, 4, 3, LaneEffect.Charge, "突撃持ちの精鋭");
+            case 3: return Eff("重騎士団長", 4, 4, 6, LaneEffect.Bond, "隣レーン連携で強化");
             case 4: return Eff("巨神兵", 6, 8, 8, LaneEffect.Trample, "圧倒的な巨体。貫通持ち");
-            default: return Item("隕石嵐", 5, LaneItem.Meteor, 5, "盤面の敵全員に5ダメージ");
+            default: return Item("隕石嵐", 6, LaneItem.Meteor, 4, "盤面の敵全員に4ダメージ");
         }
     }
 

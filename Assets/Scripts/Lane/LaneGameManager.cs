@@ -59,6 +59,10 @@ public class LaneGameManager : MonoBehaviour
     public int mineMpPerLane = 1;   // 確保レーン1つにつき得るMP
     public int mineDrawAt = 3;      // 何レーン確保でカードを1枚引くか
 
+    [Header("終焉（サドンデス：必ず決着させる）")]
+    public bool enableOvertime = true;
+    public int overtimeStartTurn = 16; // このターン以降、毎ターン両ベースが削れ始める（約8ラウンド）
+
     [Header("AI対戦")]
     public bool player2IsAI = false;
     private bool aiActing = false; // AIが操作中（人間入力をロックするため）
@@ -147,6 +151,19 @@ public class LaneGameManager : MonoBehaviour
 
         current.StartTurn();
         if (CheckWin()) return; // 山札切れの疲労ダメージで決着する場合がある
+
+        // 終焉（サドンデス）: 一定ターン以降、毎ターン両ベースが削れ、ダメージは徐々に増える
+        if (enableOvertime && turnCounter >= overtimeStartTurn)
+        {
+            int into = turnCounter - overtimeStartTurn;
+            int dmg = 2 + into / 2; // 2,2,3,3,4,4... と増加。20HPなら数ターンで決着
+            player1.TakeBaseDamage(dmg);
+            player2.TakeBaseDamage(dmg);
+            ui?.ShowBanner($"⚠ 終焉が始まった！ 両ベース −{dmg}");
+            Debug.Log($"[終焉] 両ベースに{dmg}ダメージ");
+            if (CheckWin()) return; // リードしている側が勝つ
+        }
+
         AltarControlReward(current); // 祭壇支配ボーナス（無効化中は何もしない）
         MineReward(current);         // レーン資源（鉱脈）ボーナス
         ui?.Render();
@@ -531,6 +548,13 @@ public class LaneGameManager : MonoBehaviour
         else if (occupant.owner != unit.owner)
         {
             Combat(unit, occupant);
+            // 勝って前マスが空いたら踏み込む（膠着打開・前線を押し上げる）
+            if (unit != null && unit.IsAlive && board.Get(lane, col) == unit && board.Get(lane, target) == null)
+            {
+                board.Set(lane, col, null);
+                board.Set(lane, target, unit);
+                unit.MoveTo(lane, target, cells[lane, target]);
+            }
             unit.doneThisPhase = true; // 戦闘したらこのターンは前進終了
         }
         else
