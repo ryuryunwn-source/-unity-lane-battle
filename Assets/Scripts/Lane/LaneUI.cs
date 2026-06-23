@@ -20,12 +20,58 @@ public class LaneUI : MonoBehaviour
     public Text gameOverText;
     public Button restartButton;
 
+    private Button upgradeButton;
+    private Text upgradeLabel;
+
     private void Start()
     {
         if (endTurnButton) endTurnButton.onClick.AddListener(() => LaneGameManager.Instance?.EndTurn());
         if (restartButton) restartButton.onClick.AddListener(OnRestart);
         if (bannerPanel) bannerPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
+
+        BuildUpgradeButton();
+    }
+
+    private void UpdateUpgradeButton(LaneGameManager gm)
+    {
+        if (upgradeButton == null || gm.CurrentPlayer == null) return;
+        int cost = gm.UpgradeCost(gm.CurrentPlayer);
+        if (upgradeLabel) upgradeLabel.text = $"強化 +1/+1\n💰{cost}";
+        upgradeButton.interactable = gm.CurrentPlayer.Gold >= cost;
+    }
+
+    /// <summary>盤外の「強化」ボタンを実行時に生成（シーン再構築不要）。</summary>
+    private void BuildUpgradeButton()
+    {
+        Canvas canvas = FindFirstObjectByType<Canvas>();
+        if (canvas == null) return;
+
+        GameObject go = new GameObject("UpgradeBtn");
+        go.transform.SetParent(canvas.transform, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(220f, 70f);
+        rt.anchoredPosition = new Vector2(780f, -270f); // ターン終了ボタンの少し上
+        Image img = go.AddComponent<Image>();
+        if (AncientArt.BtnTurnEnd != null) { img.sprite = AncientArt.BtnTurnEnd; img.type = Image.Type.Sliced; img.color = Color.white; }
+        else img.color = new Color(0.6f, 0.5f, 0.2f, 0.95f);
+        upgradeButton = go.AddComponent<Button>();
+        upgradeButton.onClick.AddListener(() => LaneGameManager.Instance?.HumanUpgrade());
+
+        GameObject txtGo = new GameObject("Label");
+        txtGo.transform.SetParent(go.transform, false);
+        RectTransform trt = txtGo.AddComponent<RectTransform>();
+        trt.sizeDelta = new Vector2(210f, 64f);
+        upgradeLabel = txtGo.AddComponent<Text>();
+        upgradeLabel.text = "強化";
+        upgradeLabel.fontSize = 19;
+        upgradeLabel.alignment = TextAnchor.MiddleCenter;
+        upgradeLabel.color = new Color(0.97f, 0.92f, 0.78f);
+        upgradeLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        upgradeLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+        var o = txtGo.AddComponent<Outline>();
+        o.effectColor = new Color(0.05f, 0.04f, 0.02f, 0.95f);
+        o.effectDistance = new Vector2(1.5f, -1.5f);
     }
 
     public void Render()
@@ -35,8 +81,10 @@ public class LaneUI : MonoBehaviour
 
         if (p1BaseText) p1BaseText.text = $"P1 ベース: {gm.player1.BaseHP}/{gm.player1.MaxBaseHP}";
         if (p2BaseText) p2BaseText.text = $"P2 ベース: {gm.player2.BaseHP}/{gm.player2.MaxBaseHP}";
-        if (p1MpText) p1MpText.text = $"MP: {gm.player1.MP}/{gm.player1.MaxMP}　鉱脈{gm.HeldLaneCount(gm.player1)}";
-        if (p2MpText) p2MpText.text = $"MP: {gm.player2.MP}/{gm.player2.MaxMP}　鉱脈{gm.HeldLaneCount(gm.player2)}";
+        if (p1MpText) p1MpText.text = $"MP: {gm.player1.MP}/{gm.player1.MaxMP}　鉱脈{gm.HeldLaneCount(gm.player1)}\n💰{gm.player1.Gold}  強化Lv.{gm.player1.PowerLevel}";
+        if (p2MpText) p2MpText.text = $"MP: {gm.player2.MP}/{gm.player2.MaxMP}　鉱脈{gm.HeldLaneCount(gm.player2)}\n💰{gm.player2.Gold}  強化Lv.{gm.player2.PowerLevel}";
+
+        UpdateUpgradeButton(gm);
         if (turnText && gm.CurrentPlayer != null)
         {
             string baseLabel = gm.CurrentPlayer.isPlayer1 ? "▶ Player 1 のターン" : "▶ Player 2 のターン";

@@ -67,6 +67,12 @@ public class LaneGameManager : MonoBehaviour
     public bool enableTerrain = true;
     private LaneTerrain[] laneTerrain;
 
+    [Header("ゴールド経済（盤外の強化）")]
+    public bool enableGold = true;
+    public int goldPerTurn = 3;       // 毎ターン獲得ゴールド
+    public int upgradeBaseCost = 5;   // 強化レベル1の費用
+    public int upgradeCostStep = 3;   // レベルごとの費用増加
+
     [Header("AI対戦")]
     public bool player1IsAI = false; // AI観戦（AI vs AI）でtrue
     public bool player2IsAI = false;
@@ -159,6 +165,7 @@ public class LaneGameManager : MonoBehaviour
             SpawnNeutral();
 
         current.StartTurn();
+        if (enableGold) current.Gold += goldPerTurn; // 毎ターンのゴールド収入
         if (CheckWin()) return; // 山札切れの疲労ダメージで決着する場合がある
 
         // 終焉（サドンデス）: 一定ターン以降、毎ターン両ベースが削れ、ダメージは徐々に増える
@@ -207,6 +214,38 @@ public class LaneGameManager : MonoBehaviour
 
     /// <summary>現在プレイヤーがこのカードを支払えるか（実コスト基準）。</summary>
     public bool CanAffordCurrent(CardData card) => CurrentPlayer != null && CurrentPlayer.MP >= EffectiveCost(card);
+
+    // ===== ゴールド経済（盤外の強化） =====
+    /// <summary>次の強化レベルに必要なゴールド。</summary>
+    public int UpgradeCost(LanePlayer p) => upgradeBaseCost + (p != null ? p.PowerLevel : 0) * upgradeCostStep;
+
+    /// <summary>強化を実行：ゴールドを払って強化レベル+1、自軍の場のユニットを即時+1/+1。</summary>
+    private bool TryUpgrade(LanePlayer p)
+    {
+        if (!enableGold || p == null) return false;
+        int cost = UpgradeCost(p);
+        if (p.Gold < cost) return false;
+
+        p.Gold -= cost;
+        p.PowerLevel++;
+        // 場の自軍ユニットを即時底上げ
+        foreach (var u in AllUnitsOf(p))
+        {
+            u.atk += 1;
+            u.hp += 1;
+        }
+        RefreshAllUnits();
+        Debug.Log($"{p.playerName}: 強化Lv.{p.PowerLevel}（自軍+1/+1, 残ゴールド{p.Gold}）");
+        return true;
+    }
+
+    /// <summary>人間プレイヤーの「強化」ボタンから呼ばれる。</summary>
+    public void HumanUpgrade()
+    {
+        if (GameOver) return;
+        if (IsAiTurn) return; // AIの手番中は無視
+        if (TryUpgrade(CurrentPlayer)) ui?.Render();
+    }
 
     // ===== 入力 =====
     public void OnHandCardClicked(int index, bool fromAI = false)
@@ -288,9 +327,9 @@ public class LaneGameManager : MonoBehaviour
         LaneUnit unit = go.AddComponent<LaneUnit>();
         unit.Setup(card, owner, lane, col, cells[lane, col]);
 
-        // 時代レベルによる強化（召喚時に固定）
-        int atkBonus = atkPerLevel * (EraLevel - 1);
-        int hpBonus = hpPerLevel * (EraLevel - 1);
+        // 時代レベル＋ゴールド強化レベルによる底上げ（召喚時に固定）
+        int atkBonus = atkPerLevel * (EraLevel - 1) + owner.PowerLevel;
+        int hpBonus = hpPerLevel * (EraLevel - 1) + owner.PowerLevel;
         if (atkBonus > 0 || hpBonus > 0)
         {
             unit.atk += atkBonus;
@@ -946,6 +985,10 @@ public class LaneGameManager : MonoBehaviour
             // 進展がなければ中断（無限ループ防止）
             if (me.MP == mpBefore && me.hand.Count == handBefore) break;
         }
+
+        // ゴールドが貯まっていれば強化を買う（買えるだけ）
+        while (!GameOver && CurrentPlayer == me && TryUpgrade(me))
+            yield return new WaitForSeconds(0.2f);
 
         yield return new WaitForSeconds(0.3f);
         if (!GameOver && CurrentPlayer == me)

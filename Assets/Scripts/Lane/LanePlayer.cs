@@ -16,6 +16,10 @@ public class LanePlayer
     public int MP;
     public int TurnMPGain = 1;
 
+    // 盤外の経済: ゴールドで強化レベルを上げ、自軍全体を底上げする
+    public int Gold;
+    public int PowerLevel;
+
     public List<CardData> deckData = new List<CardData>();
     public List<CardData> deckPile = new List<CardData>();
     public List<CardData> hand = new List<CardData>();
@@ -42,6 +46,8 @@ public class LanePlayer
         MP = 0;
         TurnMPGain = 1;
         fatigue = 0;
+        Gold = 0;
+        PowerLevel = 0;
         hand.Clear();
         deckPile = new List<CardData>(deckData);
         Shuffle();
