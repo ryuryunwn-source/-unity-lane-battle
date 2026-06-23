@@ -63,6 +63,10 @@ public class LaneGameManager : MonoBehaviour
     public bool enableOvertime = true;
     public int overtimeStartTurn = 16; // このターン以降、毎ターン両ベースが削れ始める（約8ラウンド）
 
+    [Header("レーン地形（環境）")]
+    public bool enableTerrain = true;
+    private LaneTerrain[] laneTerrain;
+
     [Header("AI対戦")]
     public bool player1IsAI = false; // AI観戦（AI vs AI）でtrue
     public bool player2IsAI = false;
@@ -125,6 +129,7 @@ public class LaneGameManager : MonoBehaviour
         }
 
         if (enableAltar) SpawnAltar();
+        if (enableTerrain) AssignTerrain();
 
         StartTurn(player1, player2);
     }
@@ -168,6 +173,8 @@ public class LaneGameManager : MonoBehaviour
             if (CheckWin()) return; // リードしている側が勝つ
         }
 
+        ThornsAttrition(current);    // 茨レーンの自軍は毎ターン1ダメージ
+        if (CheckWin()) return;
         AltarControlReward(current); // 祭壇支配ボーナス（無効化中は何もしない）
         MineReward(current);         // レーン資源（鉱脈）ボーナス
         ui?.Render();
@@ -288,8 +295,13 @@ public class LaneGameManager : MonoBehaviour
         {
             unit.atk += atkBonus;
             unit.hp += hpBonus;
-            unit.RefreshVisual();
         }
+
+        // 砦: このレーンに召喚するとHP+2
+        if (enableTerrain && TerrainOf(lane) == LaneTerrain.Bastion)
+            unit.hp += 2;
+
+        unit.RefreshVisual();
 
         board.Set(lane, col, unit);
         Debug.Log($"{owner.playerName}: {card.cardName} をレーン{lane}に召喚 (時代Lv.{EraLevel} +{atkBonus}/+{hpBonus})");
@@ -379,6 +391,84 @@ public class LaneGameManager : MonoBehaviour
         if (held >= mineDrawAt) { current.DrawCard(); extra = "＋ドロー"; }
         ui?.ShowBanner($"鉱脈 {held}レーン確保！ MP+{gain}{extra}");
         Debug.Log($"{current.playerName}: 鉱脈{held}レーン → MP+{gain}{extra}");
+    }
+
+    // ===== レーン地形（環境） =====
+    private LaneTerrain TerrainOf(int lane)
+    {
+        if (laneTerrain == null || lane < 0 || lane >= laneTerrain.Length) return LaneTerrain.Plain;
+        return laneTerrain[lane];
+    }
+
+    /// <summary>茨レーンにいる指定プレイヤーのユニットに毎ターン1ダメージ。</summary>
+    private void ThornsAttrition(LanePlayer player)
+    {
+        if (!enableTerrain) return;
+        for (int lane = 0; lane < LaneBoard.Lanes; lane++)
+        {
+            if (TerrainOf(lane) != LaneTerrain.Thorns) continue;
+            for (int col = 0; col < LaneBoard.Cells; col++)
+            {
+                LaneUnit u = board.Get(lane, col);
+                if (u != null && !u.isNeutral && u.owner == player && u.IsAlive)
+                    DamageUnit(u, 1, fromEffect: true);
+            }
+        }
+        RefreshAllUnits();
+    }
+
+    private void AssignTerrain()
+    {
+        laneTerrain = new LaneTerrain[LaneBoard.Lanes];
+        // 1レーンは平地、残りは特殊地形をランダム配置（毎試合変わる）
+        var pool = new List<LaneTerrain> { LaneTerrain.Swift, LaneTerrain.Forge, LaneTerrain.Thorns, LaneTerrain.Bastion };
+        for (int lane = 0; lane < LaneBoard.Lanes; lane++)
+        {
+            // 中央(2)は平地で固定、それ以外はプールからランダム（重複可）
+            laneTerrain[lane] = (lane == LaneBoard.Lanes / 2)
+                ? LaneTerrain.Plain
+                : pool[Random.Range(0, pool.Count)];
+        }
+        ApplyTerrainVisuals();
+        for (int l = 0; l < LaneBoard.Lanes; l++)
+            Debug.Log($"[地形] レーン{l}: {LaneTerrainInfo.Name(laneTerrain[l])}");
+    }
+
+    private void ApplyTerrainVisuals()
+    {
+        if (cells == null) return;
+        for (int lane = 0; lane < LaneBoard.Lanes; lane++)
+        {
+            LaneTerrain t = laneTerrain[lane];
+            // 中央セル(col1〜3)を地形色で塗る（自陣端の col0/col4 は召喚枠表示のため残す）
+            for (int col = 1; col < LaneBoard.Cells - 1; col++)
+            {
+                Transform cell = cells[lane, col];
+                if (cell == null) continue;
+                var img = cell.GetComponent<UnityEngine.UI.Image>();
+                if (img != null) img.color = LaneTerrainInfo.Tint(t);
+            }
+            // 地形名ラベルを左端セルの外側に表示
+            Transform home = cells[lane, 0];
+            if (home != null && home.Find("TerrainLabel") == null && t != LaneTerrain.Plain)
+            {
+                var go = new GameObject("TerrainLabel");
+                go.transform.SetParent(home, false);
+                var rt = go.AddComponent<UnityEngine.RectTransform>();
+                rt.sizeDelta = new Vector2(60f, 24f);
+                rt.anchoredPosition = new Vector2(-70f, 0f);
+                var txt = go.AddComponent<UnityEngine.UI.Text>();
+                txt.text = LaneTerrainInfo.Name(t);
+                txt.fontSize = 16;
+                txt.alignment = TextAnchor.MiddleCenter;
+                txt.color = new Color(0.97f, 0.92f, 0.78f);
+                txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                txt.horizontalOverflow = HorizontalWrapMode.Overflow;
+                var o = go.AddComponent<UnityEngine.UI.Outline>();
+                o.effectColor = new Color(0.05f, 0.04f, 0.02f, 0.95f);
+                o.effectDistance = new Vector2(1.2f, -1.2f);
+            }
+        }
     }
 
     // ===== 中立NPC =====
@@ -487,8 +577,8 @@ public class LaneGameManager : MonoBehaviour
         var units = AllUnitsOf(player);
         foreach (var u in units) u.doneThisPhase = false;
 
-        // 最大歩数ぶんパスを回す（基本1 + 時の砂1 + 突撃1 = 最大3）
-        int maxSteps = 1 + (timeSandActive ? 1 : 0) + 1;
+        // 最大歩数ぶんパスを回す（基本1 + 時の砂1 + 突撃1 + 疾風1 = 最大4）
+        int maxSteps = 1 + (timeSandActive ? 1 : 0) + 2;
         for (int step = 0; step < maxSteps; step++)
         {
             for (int lane = 0; lane < LaneBoard.Lanes; lane++)
@@ -520,6 +610,7 @@ public class LaneGameManager : MonoBehaviour
 
         // このユニットの許容歩数
         int allowed = 1 + (timeSandActive ? 1 : 0) + (unit.effect == LaneEffect.Charge && unit.justSummoned ? 1 : 0);
+        if (enableTerrain && TerrainOf(lane) == LaneTerrain.Swift) allowed += 1; // 疾風: +1マス
         if (step >= allowed) return;
 
         int target = col + player.Direction;
@@ -676,6 +767,8 @@ public class LaneGameManager : MonoBehaviour
         if (u.effect == LaneEffect.Bond &&
             (HasFriendlyInLane(u.owner, u.lane - 1) || HasFriendlyInLane(u.owner, u.lane + 1)))
             a += 1;
+        if (enableTerrain && TerrainOf(u.lane) == LaneTerrain.Forge) // 鍛冶場: ATK+2
+            a += 2;
         return a;
     }
 

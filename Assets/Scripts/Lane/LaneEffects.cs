@@ -24,6 +24,44 @@ public enum LaneItem
     WarCry,    // 鬨の声: 自軍全ユニットをATK+2/HP+2（時代アンロック）
 }
 
+/// <summary>レーンごとの地形（環境）効果。</summary>
+public enum LaneTerrain
+{
+    Plain = 0,  // 平地: 効果なし
+    Swift,      // 疾風: このレーンのユニットは毎ターン+1マス進軍
+    Forge,      // 鍛冶場: このレーンにいる間ATK+2
+    Thorns,     // 茨: このレーンの自軍は毎ターン1ダメージ
+    Bastion,    // 砦: このレーンに召喚するとHP+2
+}
+
+public static class LaneTerrainInfo
+{
+    public static string Name(LaneTerrain t)
+    {
+        switch (t)
+        {
+            case LaneTerrain.Swift:   return "疾風";
+            case LaneTerrain.Forge:   return "鍛冶場";
+            case LaneTerrain.Thorns:  return "茨";
+            case LaneTerrain.Bastion: return "砦";
+            default: return "平地";
+        }
+    }
+
+    /// <summary>地形を示すセルの淡い色。</summary>
+    public static UnityEngine.Color Tint(LaneTerrain t)
+    {
+        switch (t)
+        {
+            case LaneTerrain.Swift:   return new UnityEngine.Color(0.25f, 0.45f, 0.6f, 0.5f);  // 青
+            case LaneTerrain.Forge:   return new UnityEngine.Color(0.55f, 0.25f, 0.18f, 0.5f); // 赤
+            case LaneTerrain.Thorns:  return new UnityEngine.Color(0.3f, 0.4f, 0.2f, 0.5f);    // 毒緑
+            case LaneTerrain.Bastion: return new UnityEngine.Color(0.5f, 0.42f, 0.2f, 0.5f);   // 金
+            default: return new UnityEngine.Color(0.16f, 0.15f, 0.12f, 0.5f);                  // 平地
+        }
+    }
+}
+
 public static class LaneEffectInfo
 {
     public static string Keyword(LaneEffect e)
