@@ -53,13 +53,14 @@ public class TitleMenu : MonoBehaviour
         rootPanel.transform.SetParent(canvas.transform, false);
         rootPanel.AddComponent<RectTransform>();
 
-        MakeButton(rootPanel.transform, "AIと対戦", new Vector2(0, 200), OnClickVsAI);
-        MakeButton(rootPanel.transform, "1台で2人対戦", new Vector2(0, 100), OnClickLocal);
-        MakeButton(rootPanel.transform, "オンライン: ホストになる", new Vector2(0, 0), OnClickHost);
-        MakeButton(rootPanel.transform, "オンライン: コードで参加", new Vector2(0, -100), OnClickShowJoin);
+        MakeButton(rootPanel.transform, "AIと対戦", new Vector2(0, 230), OnClickVsAI);
+        MakeButton(rootPanel.transform, "AI観戦（AI vs AI）", new Vector2(0, 130), OnClickSpectateAI);
+        MakeButton(rootPanel.transform, "1台で2人対戦", new Vector2(0, 30), OnClickLocal);
+        MakeButton(rootPanel.transform, "オンライン: ホストになる", new Vector2(0, -70), OnClickHost);
+        MakeButton(rootPanel.transform, "オンライン: コードで参加", new Vector2(0, -170), OnClickShowJoin);
         // 同一PCテスト（Multiplayer Play Mode用 / UGS不要のlocalhost直結）
-        MakeButton(rootPanel.transform, "▷ 同PCテスト: ホスト", new Vector2(0, -200), OnClickLocalHost);
-        MakeButton(rootPanel.transform, "▷ 同PCテスト: 参加", new Vector2(0, -300), OnClickLocalJoin);
+        MakeButton(rootPanel.transform, "▷ 同PCテスト: ホスト", new Vector2(0, -270), OnClickLocalHost);
+        MakeButton(rootPanel.transform, "▷ 同PCテスト: 参加", new Vector2(0, -360), OnClickLocalJoin);
 
         // ===== オンライン用パネル =====
         BuildOnlinePanel();
@@ -98,6 +99,15 @@ public class TitleMenu : MonoBehaviour
         GameSession.VsAI = true;
         statusText.text = "AI対戦を開始します";
         Destroy(canvas.gameObject); // タイトルを閉じる→GameManagerが開始
+    }
+
+    private void OnClickSpectateAI()
+    {
+        GameSession.Mode = GameMode.Local;
+        GameSession.VsAI = false;
+        GameSession.SpectateAI = true;
+        statusText.text = "AI同士の対戦を観戦します";
+        Destroy(canvas.gameObject);
     }
 
     private void OnClickLocal()

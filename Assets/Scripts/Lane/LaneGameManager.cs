@@ -64,11 +64,14 @@ public class LaneGameManager : MonoBehaviour
     public int overtimeStartTurn = 16; // このターン以降、毎ターン両ベースが削れ始める（約8ラウンド）
 
     [Header("AI対戦")]
+    public bool player1IsAI = false; // AI観戦（AI vs AI）でtrue
     public bool player2IsAI = false;
-    private bool aiActing = false; // AIが操作中（人間入力をロックするため）
 
-    /// <summary>今がAI(player2)の手番か。</summary>
-    private bool IsAiTurn => player2IsAI && CurrentPlayer == player2 && !GameOver;
+    private bool IsPlayerAI(LanePlayer p) =>
+        (p == player1 && player1IsAI) || (p == player2 && player2IsAI);
+
+    /// <summary>今がAIの手番か。</summary>
+    private bool IsAiTurn => CurrentPlayer != null && IsPlayerAI(CurrentPlayer) && !GameOver;
 
     // このターン「時の砂」で全味方が+1マス進軍するか
     private bool timeSandActive = false;
@@ -109,7 +112,8 @@ public class LaneGameManager : MonoBehaviour
         EraLevel = 1;
         turnCounter = 0;
         // モード選択後に確定するため、ここでAIフラグを読み直す
-        player2IsAI = GameSession.VsAI;
+        player1IsAI = GameSession.SpectateAI;                 // AI観戦時はP1もAI
+        player2IsAI = GameSession.VsAI || GameSession.SpectateAI;
         player1.Initialize();
         player2.Initialize();
         altar = null;
@@ -174,7 +178,7 @@ public class LaneGameManager : MonoBehaviour
         Debug.Log($"=== {current.playerName} のターン (時代Lv.{EraLevel}) ===");
 
         // AIの手番なら自動進行
-        if (player2IsAI && current == player2 && !GameOver)
+        if (IsPlayerAI(current) && !GameOver)
             StartCoroutine(RunAi());
     }
 
@@ -198,10 +202,10 @@ public class LaneGameManager : MonoBehaviour
     public bool CanAffordCurrent(CardData card) => CurrentPlayer != null && CurrentPlayer.MP >= EffectiveCost(card);
 
     // ===== 入力 =====
-    public void OnHandCardClicked(int index)
+    public void OnHandCardClicked(int index, bool fromAI = false)
     {
         if (GameOver) return;
-        if (IsAiTurn && !aiActing) return; // AIの手番中は人間入力を無視
+        if (!fromAI && IsAiTurn) return; // AIの手番中は人間入力を無視
         if (index < 0 || index >= CurrentPlayer.hand.Count) return;
 
         CardData card = CurrentPlayer.hand[index];
@@ -226,10 +230,10 @@ public class LaneGameManager : MonoBehaviour
         ui?.Render();
     }
 
-    public void OnCellClicked(int lane, int col)
+    public void OnCellClicked(int lane, int col, bool fromAI = false)
     {
         if (GameOver) return;
-        if (IsAiTurn && !aiActing) return; // AIの手番中は人間入力を無視
+        if (!fromAI && IsAiTurn) return; // AIの手番中は人間入力を無視
         if (SelectedHandIndex < 0) return;
 
         CardData card = CurrentPlayer.hand[SelectedHandIndex];
@@ -459,10 +463,10 @@ public class LaneGameManager : MonoBehaviour
     }
 
     // ===== ターン終了 → 進軍フェーズ =====
-    public void EndTurn()
+    public void EndTurn(bool fromAI = false)
     {
         if (GameOver) return;
-        if (IsAiTurn && !aiActing) return; // AIの手番中は人間のターン終了を無視
+        if (!fromAI && IsAiTurn) return; // AIの手番中は人間のターン終了を無視
         SelectedHandIndex = -1;
 
         AdvancePhase(CurrentPlayer);
@@ -827,38 +831,40 @@ public class LaneGameManager : MonoBehaviour
 
     private IEnumerator RunAi()
     {
-        aiActing = true;
+        LanePlayer me = CurrentPlayer;
         yield return new WaitForSeconds(0.6f); // 思考の間
 
         int safety = 0;
-        while (!GameOver && safety++ < 30)
+        while (!GameOver && CurrentPlayer == me && safety++ < 30)
         {
             AiMove move = ChooseAiAction();
             if (move == null) break;
 
-            int mpBefore = player2.MP;
-            int handBefore = player2.hand.Count;
+            int mpBefore = me.MP;
+            int handBefore = me.hand.Count;
 
-            OnHandCardClicked(move.handIndex);
+            OnHandCardClicked(move.handIndex, fromAI: true);
             if (move.needsCell)
-                OnCellClicked(move.lane, move.col);
+                OnCellClicked(move.lane, move.col, fromAI: true);
 
             yield return new WaitForSeconds(0.45f);
-            if (GameOver) { aiActing = false; yield break; }
+            if (GameOver) yield break;
 
             // 進展がなければ中断（無限ループ防止）
-            if (player2.MP == mpBefore && player2.hand.Count == handBefore) break;
+            if (me.MP == mpBefore && me.hand.Count == handBefore) break;
         }
 
         yield return new WaitForSeconds(0.3f);
-        EndTurn();
-        aiActing = false;
+        if (!GameOver && CurrentPlayer == me)
+            EndTurn(fromAI: true);
     }
 
     private AiMove ChooseAiAction()
     {
-        var enemies = AllUnitsOf(player1);
-        var mine = AllUnitsOf(player2);
+        LanePlayer me = CurrentPlayer;
+        LanePlayer foe = OpponentPlayer;
+        var enemies = AllUnitsOf(foe);
+        var mine = AllUnitsOf(me);
 
         // 1. 落石: 強い敵(ATK4以上)を破壊
         int rockIdx = FindAffordableItem(LaneItem.Rockfall);
@@ -876,12 +882,12 @@ public class LaneGameManager : MonoBehaviour
             int bestLane = -1, bestCnt = 0;
             for (int lane = 0; lane < LaneBoard.Lanes; lane++)
             {
-                int cnt = EnemyCountInLane(lane);
+                int cnt = EnemyCountInLane(foe, lane);
                 if (cnt > bestCnt) { bestCnt = cnt; bestLane = lane; }
             }
             if (bestLane >= 0 && bestCnt >= 2)
             {
-                int col = FirstEnemyColInLane(bestLane);
+                int col = FirstEnemyColInLane(foe, bestLane);
                 if (col >= 0)
                     return new AiMove { handIndex = fireIdx, needsCell = true, lane = bestLane, col = col };
             }
@@ -898,12 +904,12 @@ public class LaneGameManager : MonoBehaviour
             return new AiMove { handIndex = warIdx, needsCell = false };
 
         // 5. 召喚: 出せる最強モンスターを最適レーンへ
-        int monIdx = BestAffordableMonster();
+        int monIdx = BestAffordableMonster(me);
         if (monIdx >= 0)
         {
-            int lane = ChooseSummonLane();
+            int lane = ChooseSummonLane(me, foe);
             if (lane >= 0)
-                return new AiMove { handIndex = monIdx, needsCell = true, lane = lane, col = player2.HomeColumn };
+                return new AiMove { handIndex = monIdx, needsCell = true, lane = lane, col = me.HomeColumn };
         }
 
         // 6. 強化の薬: 自分の最強ユニットを強化
@@ -925,27 +931,28 @@ public class LaneGameManager : MonoBehaviour
 
     private int FindAffordableItem(LaneItem item)
     {
-        for (int i = 0; i < player2.hand.Count; i++)
+        LanePlayer me = CurrentPlayer;
+        for (int i = 0; i < me.hand.Count; i++)
         {
-            CardData c = player2.hand[i];
+            CardData c = me.hand[i];
             if (c.cardType == CardType.Item && c.itemEffect == item && CanAffordCurrent(c))
                 return i;
         }
         return -1;
     }
 
-    private int BestAffordableMonster()
+    private int BestAffordableMonster(LanePlayer me)
     {
         // 空き自陣セルが無いなら召喚不可
         bool anyEmptyHome = false;
         for (int lane = 0; lane < LaneBoard.Lanes; lane++)
-            if (board.IsEmpty(lane, player2.HomeColumn)) { anyEmptyHome = true; break; }
+            if (board.IsEmpty(lane, me.HomeColumn)) { anyEmptyHome = true; break; }
         if (!anyEmptyHome) return -1;
 
         int best = -1, bestScore = -1;
-        for (int i = 0; i < player2.hand.Count; i++)
+        for (int i = 0; i < me.hand.Count; i++)
         {
-            CardData c = player2.hand[i];
+            CardData c = me.hand[i];
             if (c.cardType != CardType.Monster || !CanAffordCurrent(c)) continue;
             int score = c.attack + c.defense;
             if (score > bestScore) { bestScore = score; best = i; }
@@ -953,13 +960,13 @@ public class LaneGameManager : MonoBehaviour
         return best;
     }
 
-    private int ChooseSummonLane()
+    private int ChooseSummonLane(LanePlayer me, LanePlayer foe)
     {
         int bestLane = -1, bestEnemy = -1;
         for (int lane = 0; lane < LaneBoard.Lanes; lane++)
         {
-            if (!board.IsEmpty(lane, player2.HomeColumn)) continue;
-            int enemyCnt = EnemyCountInLane(lane);
+            if (!board.IsEmpty(lane, me.HomeColumn)) continue;
+            int enemyCnt = EnemyCountInLane(foe, lane);
             // 敵がいるレーンを優先（防衛）。同点なら最初の空きレーン。
             if (enemyCnt > bestEnemy) { bestEnemy = enemyCnt; bestLane = lane; }
         }
@@ -974,23 +981,23 @@ public class LaneGameManager : MonoBehaviour
         return best;
     }
 
-    private int EnemyCountInLane(int lane)
+    private int EnemyCountInLane(LanePlayer foe, int lane)
     {
         int n = 0;
         for (int c = 0; c < LaneBoard.Cells; c++)
         {
             LaneUnit u = board.Get(lane, c);
-            if (u != null && u.owner == player1) n++;
+            if (u != null && u.owner == foe) n++;
         }
         return n;
     }
 
-    private int FirstEnemyColInLane(int lane)
+    private int FirstEnemyColInLane(LanePlayer foe, int lane)
     {
         for (int c = 0; c < LaneBoard.Cells; c++)
         {
             LaneUnit u = board.Get(lane, c);
-            if (u != null && u.owner == player1) return c;
+            if (u != null && u.owner == foe) return c;
         }
         return -1;
     }

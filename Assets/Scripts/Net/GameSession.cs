@@ -17,6 +17,9 @@ public static class GameSession
     /// <summary>ローカル対戦で相手(player2)をAIが操作するか。</summary>
     public static bool VsAI = false;
 
+    /// <summary>AI観戦：両プレイヤーをAIが操作する。</summary>
+    public static bool SpectateAI = false;
+
     /// <summary>Relayの参加コード（ホストが発行 / 参加者が入力）。</summary>
     public static string RelayJoinCode = "";
 
@@ -29,6 +32,7 @@ public static class GameSession
     {
         Mode = GameMode.None;
         VsAI = false;
+        SpectateAI = false;
         RelayJoinCode = "";
     }
 }
